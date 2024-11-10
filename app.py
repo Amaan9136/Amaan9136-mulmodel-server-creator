@@ -4,10 +4,10 @@ import socket
 import os
 import pickle
 import numpy as np
-import ast  # For safely evaluating strings as Python literal expressions
+import ast  
 
 app = Flask(__name__)
-models_file_path = "models_folder/"
+models_folder_path = "models_folder/"
 
 # Function to get the local IP address
 def get_local_ip():
@@ -19,32 +19,39 @@ def start_ngrok():
     public_url = ngrok.connect(5000, bind_tls=True)
     return public_url
 
-# Endpoint to retrieve connection details
+# Endpoint to retrieve connection details and list of model names
 @app.route('/get-details', methods=['GET'])
 def get_details():
     local_ip = get_local_ip()
     ngrok_url = start_ngrok()
+
+    # Get list of model names in the models folder
+    try:
+        model_names = [f for f in os.listdir(models_folder_path)]
+    except FileNotFoundError:
+        model_names = []
+
     return jsonify({
-        "local_ip": f"http://{local_ip}:5000/download-model/model_name",
-        "ngrok_url": f"{ngrok_url}/download-model/model_name",
+        "local_ip": f"http://{local_ip}:5000/download/model_name",
+        "ngrok_url": f"{ngrok_url}/download/model_name",
         "predict_local": f"http://{local_ip}:5000/predict/model_name",
-        "predict_ngrok": f"{ngrok_url}/predict/model_name"
+        "predict_ngrok": f"{ngrok_url}/predict/model_name",
+        "model_names": model_names
     })
 
 # Endpoint to download a specified model file
-@app.route('/download-model/<model_name>', methods=['GET'])
+@app.route('/download/<model_name>', methods=['GET'])
 def download_file(model_name):
-    file_path = os.path.join(models_file_path, model_name)
+    file_path = os.path.join(models_folder_path, model_name)
     if os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
     else:
         return jsonify({"error": "File not found"}), 404
-    
 
 # Endpoint to handle prediction requests using query parameters
 @app.route('/predict/<model_name>', methods=['GET'])
 def predict(model_name):
-    file_path = os.path.join(models_file_path, model_name)
+    file_path = os.path.join(models_folder_path, model_name)
     if not os.path.exists(file_path):
         return jsonify({"error": "Model file not found"}), 404
 
@@ -77,6 +84,28 @@ def predict(model_name):
 
     # Return the prediction result
     return jsonify({"prediction": prediction.tolist()})
+
+# New endpoint to read data from `.txt` or `.md` files
+@app.route('/read/<filename>', methods=['GET'])
+def read_model_data(filename):
+    # # Allow only '.txt' or files with '.md' extension
+    if not (filename.endswith(".txt") or filename.endswith(".md")):
+        return jsonify({"error": "Access denied: only '.txt' or '.md' files can be read"}), 403
+
+    file_path = os.path.join(models_folder_path, filename)
+    print(file_path)
+    if not os.path.exists(file_path):
+        return jsonify({"error": "File not found"}), 404
+
+    try:
+        with open(file_path, 'r') as f:
+            data = f.read()
+    except Exception as e:
+        return jsonify({"error": f"Failed to read data: {str(e)}"}), 500
+
+    return jsonify({
+        "data": data,
+    })
 
 # Function to run the Flask app
 def run_app():
