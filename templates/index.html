@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Sharing and Access</title>
+    <style>
+        .hidden {
+            display: none;
+        }
+
+        .visible {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>File Sharing and Access</h1>
+
+    <!-- Navigation buttons -->
+    <button onclick="showSection('host')">Host: Share Directory</button>
+    <button onclick="showSection('participant')">Participant: Access Files</button>
+    <button onclick="showSection('model')">Model Testing</button>
+    <button onclick="showSection('details')">Connection Details</button>
+
+    <!-- Host Section: Enter Path Form -->
+    <div id="hostSection" class="visible">
+        <h2>Enter Your Local Path</h2>
+        <form id="pathForm" onsubmit="submitPath(event)">
+            <label for="path">Local Path:</label>
+            <input type="text" id="path" name="path" required>
+            <button type="submit">Submit Path</button>
+        </form>
+    </div>
+
+    <!-- Participant Section: Available Files List -->
+    <div id="participantSection" class="hidden">
+        <h2>Available Files</h2>
+        <div id="fileList">
+            <p>Loading files...</p>
+        </div>
+    </div>
+
+    <!-- Model Data and Prediction Testing -->
+    <div id="modelTestingSection" class="hidden">
+        <h2>Model Testing</h2>
+        <input type="text" id="modelName" placeholder="Enter model name (e.g., model.pkl)">
+        <input type="text" id="inputData" placeholder="Enter input data as list (e.g., [1, 2])">
+        <button onclick="predictModel()">Predict</button>
+        <div id="predictionResult"></div>
+    </div>
+
+    <!-- Details Section for Local and Global Information -->
+    <div id="detailsSection" class="hidden">
+        <h2>Connection Details</h2>
+        <button onclick="getLocalDetails()">Get Local Details</button>
+        <button onclick="getGlobalDetails()">Get Global Details</button>
+        <div id="detailsResult"></div>
+    </div>
+
+    <script>
+        // Function to toggle between sections
+        function showSection(section) {
+            document.getElementById('hostSection').classList.toggle('hidden', section !== 'host');
+            document.getElementById('participantSection').classList.toggle('hidden', section !== 'participant');
+            document.getElementById('modelTestingSection').classList.toggle('hidden', section !== 'model');
+            document.getElementById('detailsSection').classList.toggle('hidden', section !== 'details');
+            if (section === 'participant') loadFiles();
+        }
+
+        // Submit Path Function
+        async function submitPath(event) {
+            event.preventDefault();
+            const path = document.getElementById('path').value;
+            try {
+                const response = await fetch('/submit-path', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ path })
+                });
+                const data = await response.json();
+                alert(data.message || data.error);
+            } catch (error) {
+                alert('Error submitting path: ' + error.message);
+            }
+        }
+
+        // Load Files Function
+        async function loadFiles() {
+            try {
+                const response = await fetch('/files');
+                const data = await response.json();
+                const fileListContainer = document.getElementById('fileList');
+                fileListContainer.innerHTML = data.files ? data.files.map(file => `<a href="/download/${file}" download>${file}</a>`).join('<br>') : '<p>No files available.</p>';
+            } catch (error) {
+                alert('Error loading files: ' + error.message);
+            }
+        }
+
+        // Predict Model Function
+        async function predictModel() {
+            const modelName = document.getElementById('modelName').value;
+            const inputData = document.getElementById('inputData').value;
+            try {
+                const response = await fetch(`/predict/${modelName}?data=${encodeURIComponent(inputData)}`);
+                const data = await response.json();
+                document.getElementById('predictionResult').innerHTML = data.prediction ? `Prediction: ${data.prediction}` : `Error: ${data.error}`;
+            } catch (error) {
+                alert('Error predicting: ' + error.message);
+            }
+        }
+
+        // Get Local Details Function
+        async function getLocalDetails() {
+            try {
+                const response = await fetch('/local-details');
+                const data = await response.json();
+                document.getElementById('detailsResult').innerHTML = `Local IP: ${data.local_ip}<br>Predict URL: ${data.predict_local}<br>Files: ${data.file_names.join(', ')}`;
+            } catch (error) {
+                alert('Error getting local details: ' + error.message);
+            }
+        }
+
+        // Get Global Details Function
+        async function getGlobalDetails() {
+            try {
+                const response = await fetch('/global-details');
+                const data = await response.json();
+
+                const modelFiles = data.model_files && data.model_files.length > 0
+                    ? data.model_files.join(', ')
+                    : 'No model files available';
+
+                const descriptionFiles = data.description_files && data.description_files.length > 0
+                    ? data.description_files.join(', ')
+                    : 'No description files available';
+
+                document.getElementById('detailsResult').innerHTML = `
+            Ngrok URL: ${data.ngrok_url}<br>
+            Predict URL: ${data.predict_ngrok}<br>
+            Model Files: ${modelFiles}<br>
+            Description Files: ${descriptionFiles}
+        `;
+            } catch (error) {
+                alert('Error getting global details: ' + error.message);
+            }
+        }
+
+    </script>
+</body>
+
+</html>
